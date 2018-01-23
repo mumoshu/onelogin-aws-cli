@@ -5,4 +5,9 @@ install:
   - pip install flake8
 before_script:
   - flake8 .
-script: python -m unittest -v
+env:
+- TARGET=test
+- TARGET=dist
+script:
+- if [ "$TARGET" == "test" ]; then python -m unittest -v; fi
+- if [ "$TARGET" == "dist" ]; then pip install -r dev-requirements.txt && scripts/build.sh; fi
