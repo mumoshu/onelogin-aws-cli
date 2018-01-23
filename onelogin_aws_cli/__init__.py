@@ -95,24 +95,48 @@ class OneloginAWS(object):
             if callback:
                 devices = res[0]["devices"]
                 device_id = None
+                device_type = None
                 if len(devices) > 1:
                     for i in range(0, len(devices)):
                         print("{}. {}".format(i+1, devices[i]["device_type"]))
                     device_num = input("Which OTP Device? ")
                     device_id = devices[int(device_num)-1]["device_id"]
+                    device_type = devices[int(device_num)-1]["device_type"]
                 else:
                     device_id = devices[0]["device_id"]
-
-                otp_token = input("OTP Token: ")
+                    device_type = devices[0]["device_type"]
 
                 params = {
                     "app_id": self.config["aws_app_id"],
                     "device_id": str(device_id),
                     "state_token": state_token,
-                    "otp_token": otp_token
                 }
-                res = self.request("api/1/saml_assertion/verify_factor",
-                                   headers, params)
+
+                otp_token = None
+                if device_type == "OneLogin Protect":
+                    user_id = res[0]["user"]["id"]
+                    print(f"user_id={user_id}, device_id={device_id}")
+                    # This in combination with the Generate-SAML-assertion API requires you
+                    # to provide onelogin-aws-cli an API credential with "Manage Users" or "Manage All"
+                    res = self.request(f"api/1/users/{user_id}/otp_devices/{device_id}/trigger",
+                                       headers, {})
+                    params["state_token"] = res[0]["state_token"]
+                    print("Please accept this session via your OneLogin Protect app.")
+                    import time
+                    expiration_time = time.time() + 15
+                    while time.time() < expiration_time:
+                        try:
+                            res = self.request("api/1/saml_assertion/verify_factor",
+                                               headers, params)
+                            break
+                        except Exception as e:
+                            print(e)
+                else:
+                    while not otp_token:
+                        otp_token = input("OTP Token: ")
+                    params["otp_token"] = otp_token
+                    res = self.request("api/1/saml_assertion/verify_factor",
+                                       headers, params)
         self.saml = res
 
     def get_arns(self):
